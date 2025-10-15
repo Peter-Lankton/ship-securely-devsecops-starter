@@ -15,9 +15,15 @@ init:
 build:
 	docker build -t $(IMAGE) app
 
-dockerlint:
+dockerlint: init
 	@echo "== Hadolint (Dockerfile) =="
-	docker run --rm -i hadolint/hadolint < app/Dockerfile > artifacts/hadolint.txt || true
+	@docker run --rm \
+	  -v $(PWD)/app/Dockerfile:/Dockerfile:ro \
+	  hadolint/hadolint hadolint /Dockerfile \
+	  > artifacts/hadolint.txt 2> artifacts/hadolint.stderr || true
+	@# If no findings, write a friendly note so the file isn't empty
+	@[ -s artifacts/hadolint.txt ] || echo "No Hadolint findings." > artifacts/hadolint.txt
+	@echo "wrote artifacts/hadolint.txt"
 
 sast:
 	@echo "== Semgrep (SAST) =="
