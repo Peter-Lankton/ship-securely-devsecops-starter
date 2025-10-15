@@ -7,7 +7,7 @@ K8S_DIR=infra/k8s
 SBOM_FILE=artifacts/sbom.json
 
 # ==== CI ====
-ci: init build dockerlint sast secrets iac sbom sign verify sca zap
+ci: init build dockerlint sast secrets iac sbom sign verify sca
 
 init:
 	@mkdir -p artifacts .trivy-db
@@ -22,6 +22,7 @@ dockerlint:
 sast:
 	@echo "== Semgrep (SAST) =="
 	docker run --rm -v $(PWD):/src returntocorp/semgrep semgrep --config p/owasp-top-ten --sarif --output /src/artifacts/semgrep.sarif /src/app || true
+
 
 secrets:
 	@echo "== TruffleHog (secrets) =="
@@ -56,19 +57,16 @@ verify:
 
 sca:
 	@echo "== Trivy (image scan) =="
-	docker run --rm -v $(PWD):/workspace -v $(PWD)/.trivy-db:/root/.cache/trivy aquasec/trivy:latest image --ignore-unfixed --format json -o /workspace/artifacts/trivy-image.json $(IMAGE) || true
-
-zap:
-	@echo "== OWASP ZAP (baseline against local k8s service if available) =="
-	@mkdir -p artifacts/zap
-	# Try to get a service URL from Minikube; fallback to localhost
-	@URL=$$(minikube -p $(PROFILE) service $(APP_NAME) -n $(NAMESPACE) --url 2>/dev/null | head -n1); \
-	if [ -z "$$URL" ]; then URL=http://localhost:8080; fi; \
-	echo "ZAP target: $$URL"; \
-	docker run --rm -t -v $(PWD)/tools/zap:/zap/wrk owasp/zap2docker-stable zap-baseline.py -t $$URL -r /zap/wrk/report.html || true
+	docker run --rm \
+		-v $(PWD):/workspace \
+		-v $(PWD)/.trivy-db:/root/.cache/trivy \
+		-v /var/run/docker.sock:/var/run/docker.sock \
+		aquasec/trivy:latest \
+		image --ignore-unfixed --format json \
+		-o /workspace/artifacts/trivy-image.json $(IMAGE)
 
 # ==== CD (Minikube) ====
-cd: mk-up build mk-image-load k8s-ns k8s-apply k8s-verify
+cd: mk-up build mk-image-load k8s-ns k8s-apply k8s-verify zap
 	@echo "✅ Deployed $(APP_NAME) to Minikube ($(PROFILE)) in namespace $(NAMESPACE)"
 
 mk-up:
@@ -105,3 +103,26 @@ k8s-port:
 
 k8s-logs:
 	kubectl -n $(NAMESPACE) logs -l app=$(APP_NAME) -f --tail=200
+
+# ==== ZAP (via port-forward) ====
+ZAP_MINS?=1
+ZAP_TIMEOUT?=3
+
+zap:
+	@echo "== OWASP ZAP (baseline via port-forward) =="
+	@mkdir -p artifacts/zap
+	( kubectl -n $(NAMESPACE) port-forward deploy/$(APP_NAME) 8080:3000 >/dev/null 2>&1 & echo $$! > .pf.pid )
+	@for i in $$(seq 1 20); do \
+	  sleep 1; \
+	  if curl -fsS http://localhost:8080/healthz >/dev/null; then echo "Port-forward is live"; break; fi; \
+	  if ! kill -0 $$(cat .pf.pid) 2>/dev/null; then echo "Port-forward exited"; rm -f .pf.pid; exit 0; fi; \
+	  if [ $$i -eq 20 ]; then echo "Timed out waiting"; kill $$(cat .pf.pid) 2>/dev/null || true; rm -f .pf.pid; exit 0; fi; \
+	done
+	@URL=http://host.docker.internal:8080; \
+	echo "ZAP target: $$URL"; \
+	docker run --rm -t --add-host=host.docker.internal:host-gateway \
+	  -v $(PWD)/tools/zap:/zap/wrk -w /zap/wrk \
+	  zaproxy/zap-stable:latest \
+	  zap-baseline.py -t $$URL -m $(ZAP_MINS) -T $(ZAP_TIMEOUT) -s \
+	  -r report.html -J report.json || true
+	-@kill $$(cat .pf.pid) 2>/dev/null || true; rm -f .pf.pid
