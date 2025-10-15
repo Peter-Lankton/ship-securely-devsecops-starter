@@ -27,8 +27,10 @@ dockerlint: init
 
 sast:
 	@echo "== Semgrep (SAST) =="
-	docker run --rm -v $(PWD):/src returntocorp/semgrep semgrep --config p/owasp-top-ten --sarif --output /src/artifacts/semgrep.sarif /src/app || true
-
+	docker run --rm -v $(PWD):/src returntocorp/semgrep \
+	  semgrep --config p/owasp-top-ten --config /src/tools/semgrep \
+	  --json  --json-output /src/artifacts/semgrep.json \
+	  /src/app || true
 
 secrets:
 	@echo "== TruffleHog (secrets) =="
