@@ -14,6 +14,8 @@ spec:
           image: ship-securely/app:dev
           ports: [{ containerPort: 3000 }]
           securityContext:
+            runAsUser: 10001
+            runAsGroup: 10001
             runAsNonRoot: true
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
