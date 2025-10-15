@@ -24,8 +24,11 @@ sast:
 	docker run --rm -v $(PWD):/src returntocorp/semgrep semgrep --config p/owasp-top-ten --sarif --output /src/artifacts/semgrep.sarif /src/app || true
 
 secrets:
-	@echo "== Gitleaks (secrets) =="
-	docker run --rm -v $(PWD):/work zricethezav/gitleaks:latest detect -s /work -r artifacts/gitleaks.json --no-banner || true
+	@echo "== TruffleHog (secrets) =="
+	docker run --rm -v $(PWD):/repo -w /repo \
+	  ghcr.io/trufflesecurity/trufflehog:latest \
+	  filesystem --json . > artifacts/trufflehog.json || true
+	@echo "wrote artifacts/trufflehog.json"
 
 iac:
 	@echo "== Checkov (IaC) =="
