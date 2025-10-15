@@ -33,7 +33,7 @@ iac:
 
 sbom:
 	@echo "== Syft (SBOM) =="
-	docker run --rm -v $(PWD):/work anchore/syft:latest packages dir:/work/app --json > $(SBOM_FILE)
+	docker run --rm -v $(PWD):/work anchore/syft:latest scan dir:/work/app -o json > $(SBOM_FILE)
 
 sign:
 	@echo "== (Optional) Cosign sign image (skips if key missing) =="

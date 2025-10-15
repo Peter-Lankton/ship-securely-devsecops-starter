@@ -1,4 +1,4 @@
-version: "2 Developer Controls (do today).9"
+version: "2"
 services:
   app:
     build: ./app
