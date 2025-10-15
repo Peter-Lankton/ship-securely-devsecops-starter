@@ -31,9 +31,12 @@ secrets:
 	  filesystem --json . > artifacts/trufflehog.json || true
 	@echo "wrote artifacts/trufflehog.json"
 
-iac:
+iac: init
 	@echo "== Checkov (IaC) =="
-	docker run --rm -v $(PWD):/work bridgecrew/checkov -d /work/infra --output-file-path artifacts/checkov.json || true
+	docker run --rm -v $(PWD):/work -w /work \
+	  bridgecrew/checkov \
+	  -d /work/infra -o json > artifacts/checkov.json || true
+	@echo "wrote artifacts/checkov.json"
 
 sbom:
 	@echo "== Syft (SBOM) =="
