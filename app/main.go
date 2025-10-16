@@ -23,7 +23,13 @@ var tpl = template.Must(template.New("index").Parse(`
 </html>
 `))
 
+var gh = "ghp_1234567890abcdef1234567890abcdef1234"
+var slack = "xoxb-123456789012-123456789012-ABCDEFabcdef1234567890"
+var awsID = "AKIAYVP4CIPPERUVIFXG"                      // looks like an AWS key ID
+var awsSec = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" // fake-shaped secret key
+
 func main() {
+	fmt.Println(gh, slack, awsID, awsSec)
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
